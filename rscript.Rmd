@@ -1,0 +1,527 @@
+---
+title: "CitiBike"
+author: "Group 4"
+date: "5/21/2023"
+output:
+html_document: default
+editor_options:
+chunk_output_type: console
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+  
+  Use control+Enter to run the code chunks on PC.
+Use  command+Enter to run the code chunks on MAC.
+
+## Load Packages
+
+In this section, we install and load the necessary packages. 
+
+```{r libraries, message=FALSE, include = FALSE}
+
+### Install packages. If you haven't install the following package, please uncomment the line below to install it. Then, comment it back before knitting the document.
+#install.packages("ggplot2")
+#install.packages('car')
+
+### load libraries for use in current working session
+library('ggplot2')
+library('class') # to run KNN
+library('ROSE') # to generate ROC
+library('car')
+library('dplyr')
+
+```
+
+## Import Data
+
+In this section, we import the necessary data for this lab.
+
+```{r import, include=FALSE}
+
+### set your working directory
+# use setwd to set your working directory
+
+# you can also go to session-> set working directory -> choose directory
+# working directory is the path to the folder and not file
+
+# make sure the path of the directory is correct, i.e., where you have stored your data
+getwd()
+setwd("/Users/shivaraya/Downloads")
+### import data file
+# read the files using read.csv
+demand <- read.csv("demand.csv")
+
+
+```
+
+Citi Bike is a private bicycle sharing service in New York City. This is a subsample of the Citi Bike and contains information about demand between different stations. The file contains a random sample of taken from June 1, 2017
+to May 31, 2018 (31,452 out of 15.7 million rides). Data was collected at the Central Park, NYC weatherstation (WBAN Number: 94728) and matched by date and time to Citi Bike trips. The records indicate thegeneral weather for the NYC area during the ride and are not specific to the weather at any Citi Bikestation.Citi Bike has two basic user types. A customer buys a temporary pass (a 24-hour pass or 3-day pass). A
+subscriber purchases access to bicycles for an entire year. Because subscribers register with Citi Bike,
+
+The file contains these following fields:
+Customer_prop: The proportion of Customers
+DemandDate: the date the bicycle was rented, and the trip started
+DemandTime: the time of day (daytime vs evening) the bicycle was rented, and the trip started
+DayOfWeek: the day of week the bicycle was rented, and the trip started
+Month: the month the bicycle was rented, and the trip started
+Demand: the number of trips between the start station and the end station
+StartStationId: A unique ID for the station from which the bicycle was rented (the ‘start’ of the trip)
+StartStationName: Name (often the street location) of the start station
+StartStationLatitude, StartStationLongitude: Latitude and Longitude of the start station
+StartNeighborhood: General neighborhood of the start station (e.g., East Harlem, Soho, Park Slope)
+Similar fields are defined for the End station (EndStationId, EndStationName,EndStationLatitude,EndStationLongitude, EndNeighborhood).
+TripDurationMinutes: average duration of trips starting at the start station and ending at the end station,in minutesDistanceMiles: Approximate distance between start and end station, for trips starting at the start station
+and ending at the end station, in miles. For example, in row two, DistanceMiles= 0.8489, which means
+that the approximate distance for trips that started in StartStationId 83 and ended in EndStationId 3368 is
+0.8489 miles.
+MilesPerHour: Approximate speed of the trip, based on the trip duration and the distance between
+stations (we assume – possibly incorrectly – that the trip was direct travel between stations)
+StartCommuteTime, EndCommuteTime: The mean travel time in minutes spent commuting to work in
+the neighborhoods where the trip started and ended.
+Temperature: The temperature (in Fahrenheit) at the Central Park weather observation station at the start
+of the trip.
+DailySnow: The total snow falls in inches that day at the Central Park weather station.
+DailyPrecipitation: Total precipitation in inches that day at the Central Park weather station.
+StartPerCapitaIncome, EndPerCapitaIncome: The mean income for each person living in the
+neighborhoods where the trip started and ended. It is calculated by dividing the aggregate income of the
+residents by the total number of residents in the neighborhood.
+StartPctHouseholdsNoVehicle, EndPctHouseholdsNoVehicle: The percentage of households in the
+neighborhoods at the start and end of the trip that report not having a vehicle available.
+### Explore your data 
+```{r}
+# like usual, explore the data using 5 functions
+
+dim(demand)
+
+str(demand)
+
+colnames(demand)
+
+head(demand)
+
+tail(demand)
+
+# Correct the type of R objects
+# Continent is a factor
+table(demand$DemandTime)
+demand$DemandTime<- as.factor(demand$DemandTime)
+
+table(demand$DayOfWeek)
+demand$DayOfWeek<- as.factor(demand$DayOfWeek)
+
+table(demand$Month)
+demand$Month<- as.factor(demand$Month)
+
+table(demand$StartStationName)
+demand$StartStationName<- as.factor(demand$StartStationName)
+demand$StartNeighborhood <- as.factor(demand$StartNeighborhood)
+demand$EndStationName <- as.factor(demand$EndStationName)
+demand$EndNeighborhood<- as.factor(demand$EndNeighborhood)
+
+```
+
+
+### Descriptive Statistics
+```{r DesStatsFruit}
+# Descriptive stats for continuous variables: mean, median, min, max, sd
+
+summary(demand$Demand)
+sd(demand$Demand)
+
+summary(demand$Temperature)
+sd(demand$Temperature)
+correlationT <- cor(demand$Demand, demand$Temperature, use = "complete.obs")
+correlationT
+
+summary(demand$DailySnowFall)
+sd(demand$DailySnowFall)
+correlation_snowfall <- cor(demand$Demand, demand$DailySnowFall,  use = "complete.obs")
+correlation_snowfall 
+
+summary(demand$DailyPrecipitation)
+sd(demand$DailyPrecipitation)
+correlation_precipitation <- cor(demand$Demand, demand$DailyPrecipitation,  use = "complete.obs")
+correlation_precipitation
+
+summary(demand$Customer_prop)
+sd(demand$Customer_prop)
+correlation_customer_prop <- cor(demand$Demand, demand$Customer_prop, use = "complete.obs")
+correlation_customer_prop
+
+summary(demand$StartPerCapitaIncome)
+sd(demand$StartPerCapitaIncome)
+correlation_start_income <- cor(demand$Demand, demand$StartPerCapitaIncome, use = "complete.obs")
+correlation_start_income
+
+summary(demand$StartPctHouseholdsNoVehicle)
+sd(demand$StartPctHouseholdsNoVehicle)
+correlation_start_no_vehicle <- cor(demand$Demand, demand$StartPctHouseholdsNoVehicle, use = "complete.obs")
+correlation_start_no_vehicle
+
+summary(demand$EndPerCapitaIncome)
+sd(demand$EndPerCapitaIncome)
+correlation_end_income <- cor(demand$Demand, demand$EndPerCapitaIncome, use = "complete.obs")
+correlation_end_income
+
+summary(demand$EndPctHouseholdsNoVehicle)
+sd(demand$EndPctHouseholdsNoVehicle)
+correlation_end_no_vehicle <- cor(demand$Demand, demand$EndPctHouseholdsNoVehicle, use = "complete.obs")
+correlation_end_no_vehicle
+
+summary(demand$TripDurationMinutes)
+sd(demand$TripDurationMinutes)
+correlation_trip_duration <- cor(demand$Demand, demand$TripDurationMinutes, use = "complete.obs")
+correlation_trip_duration
+
+summary(demand$DistanceMiles)
+sd(demand$DistanceMiles)
+correlation_distance <- cor(demand$Demand, demand$DistanceMiles, use = "complete.obs")
+correlation_distance
+
+table(demand$DayOfWeek)
+table(demand$DemandTime)
+table(demand$Month)
+
+
+```
+
+
+**INTERPRETATION**
+Based on the summary statistics and correlation coefficients calculated from the provided data, here are some observations:
+
+1. Demand:
+   - The minimum number of bike trips (Demand) is 1, while the maximum is 294.
+   - The median number of bike trips is 40, and the mean is approximately 45.36.
+   - The standard deviation of the demand is approximately 32.61.
+
+2. Temperature:
+   - The minimum temperature is 11.11, and the maximum is 87.64.
+   - There are 252 missing values in the Temperature variable.
+   - The median temperature is 66.58, and the mean is approximately 62.58.
+   - The correlation between Demand and Temperature is approximately 0.0207.
+
+3. Daily Snowfall:
+   - The minimum daily snowfall is 0, and the maximum is 10.6938.
+   - There are 1476 missing values in the DailySnowFall variable.
+   - The median daily snowfall is 0, and the mean is approximately 0.0882.
+   - The correlation between Demand and DailySnowFall is approximately 0.0014.
+
+4. Daily Precipitation:
+   - The minimum daily precipitation is 0, and the maximum is 2.66.
+   - There are 5054 missing values in the DailyPrecipitation variable.
+   - The median daily precipitation is 0.001, and the mean is approximately 0.074.
+   - The correlation between Demand and DailyPrecipitation is approximately 0.0008.
+
+5. Customer Proportion:
+   - The minimum customer proportion is 0.0096, and the maximum is 0.3774.
+   - There are 1505 missing values in the Customer_prop variable.
+   - The median customer proportion is 0.0806, and the mean is approximately 0.1024.
+   - The correlation between Demand and Customer_prop is approximately -0.0165.
+
+6. Start Per Capita Income:
+   - The minimum start per capita income is 19071, and the maximum is 166343.
+   - There are 706 missing values in the StartPerCapitaIncome variable.
+   - The median start per capita income is 85199, and the mean is approximately 82565.
+   - The correlation between Demand and StartPerCapitaIncome is approximately 0.3218.
+
+7. Start Percent Households No Vehicle:
+   - The minimum start percentage of households with no vehicle is 0.4864, and the maximum is 0.8624.
+   - There are 706 missing values in the StartPctHouseholdsNoVehicle variable.
+   - The median start percentage of households with no vehicle is 0.7902, and the mean is approximately 0.763.
+   - The correlation between Demand and StartPctHouseholdsNoVehicle is approximately 0.3892.
+
+8. End Per Capita Income:
+   - The minimum end per capita income is 19071, and the maximum is 166343.
+   - There are 704 missing values in the EndPerCapitaIncome variable.
+   - The median end per capita income is 85199, and the mean is approximately 82792.
+   - The correlation between Demand and EndPerCapitaIncome is approximately 0.1824.
+
+9. End Percent Households No Vehicle:
+   - The minimum end percentage of households with no vehicle is 0.4864, and the maximum is 0.8624.
+   - There are 704 missing values in the EndPctHouseholdsNoVehicle variable.
+   - The median end percentage of households with no vehicle is 0.7902, and the mean
+
+ is approximately 0.7633.
+   - The correlation between Demand and EndPctHouseholdsNoVehicle is approximately 0.3258.
+
+10. Trip Duration (Minutes):
+    - The minimum trip duration is 1.017 minutes, and the maximum is 59.633 minutes.
+    - The median trip duration is 10.283 minutes, and the mean is approximately 12.977 minutes.
+    - The standard deviation of the trip duration is approximately 9.0742.
+    - The correlation between Demand and TripDurationMinutes is approximately 0.0023.
+
+11. Distance (Miles):
+    - The minimum distance is 0 miles, and the maximum is 7.3879 miles.
+    - The median distance is 0.8628 miles, and the mean is approximately 1.1232 miles.
+    - The standard deviation of the distance is approximately 0.8837.
+    - The correlation between Demand and DistanceMiles is approximately 0.0069.
+
+**ALSO**
+ Here are the absolute correlation values:
+
+- Demand and Temperature: 0.0207
+- Demand and DailySnowFall: 0.0014
+- Demand and DailyPrecipitation: 0.0008
+- Demand and Customer_prop: 0.0165
+- Demand and StartPerCapitaIncome: 0.3218
+- Demand and StartPctHouseholdsNoVehicle: 0.3892
+- Demand and EndPerCapitaIncome: 0.1824
+- Demand and EndPctHouseholdsNoVehicle: 0.3258
+- Demand and TripDurationMinutes: 0.0023
+- Demand and DistanceMiles: 0.0069
+
+Based on these values, the variables that have a stronger association with the Demand variable (in terms of absolute correlation) are:
+
+1. StartPctHouseholdsNoVehicle: The correlation coefficient is 0.3892, indicating a moderately positive association. This suggests that areas with a higher percentage of households with no vehicle may have a higher demand for bike trips.
+
+2. StartPerCapitaIncome: The correlation coefficient is 0.3218, indicating a moderate positive association. This suggests that areas with higher per capita income may have a higher demand for bike trips.
+
+3. EndPctHouseholdsNoVehicle: The correlation coefficient is 0.3258, indicating a moderately positive association. This suggests that areas with a higher percentage of households with no vehicle at the end point may have a higher demand for bike trips.
+
+These variables show relatively stronger associations with the Demand variable compared to other variables in the dataset. However, it's important to note that correlation does not imply causation, and further analysis is required to establish any causal relationships between these variables and bike trip demand.
+
+
+### Visualization 
+Visualization using ggplot2
+– Univariate: e.g., use the histogram to visualize the distribution of demands
+– Bivariate: e.g., use scatter plot to visualize the relationship between demand 
+and
+
+```{r Q1plotFruit}
+
+# Use ggplot() to plot a scatter plot for price and sales
+
+ggplot(demand, mapping = aes(x = Month, y = Demand)) + 
+  geom_point() + 
+  geom_smooth(method = "lm",se = FALSE, color = "blue") + 
+  ggtitle("Impact of Day on Demand") + 
+  xlab("Month") +
+  ylab("Demand")
+
+
+ggplot(demand,aes(x = DayOfWeek, y = Demand))+  
+  geom_bar(stat = "identity", fill="green", color="black")
+
+ggplot(demand,aes(x = Month, y = Demand))+  
+  geom_bar(stat = "identity", fill="green", color="black")
+
+ggplot(demand,aes(x = DemandTime, y = Demand))+  
+  geom_bar(stat = "identity", fill="green", color="black")
+
+
+
+
+```
+
+
+```{Descriptive Visualizations }
+
+ggplot(demand, aes(x = Demand)) + 
+  geom_histogram()
+
+ggplot(demand, aes(x =StartPctHouseholdsNoVehicle)) + 
+  geom_histogram()
+
+ggplot(demand, aes(x =EndPctHouseholdsNoVehicle)) + 
+  geom_histogram()
+
+ggplot(demand, aes(x =StartPerCapitaIncome)) + 
+  geom_histogram()
+
+ggplot(demand, aes(x =EndPerCapitaIncome)) + 
+  geom_histogram()
+
+ggplot(demand, mapping = aes(x = StartPerCapitaIncome, y = Demand)) + 
+  geom_point()+ 
+  scale_x_log10() 
+
+
+ggplot(demand, mapping = aes(x = EndPerCapitaIncome, y = Demand)) + 
+  geom_point()+ 
+  scale_x_log10() 
+
+ggplot(demand, mapping = aes(x = EndPctHouseholdsNoVehicle, y = Demand)) + 
+  geom_point()+ 
+  scale_x_log10() 
+
+ggplot(demand, mapping = aes(x = StartPctHouseholdsNoVehicle, y = Demand)) + 
+  geom_point()+ 
+  scale_x_log10() 
+
+```
+
+
+## Task 2: Predective Analysis
+
+
+
+```{r linearRegression}
+### 1. Forecast daytime and evening demand for five stations of your choosing using a linear regression model
+#At least three of the following predictors must be included in a regression model: Demand , Station IDs for Start and End
+#we particularly selected the stations based on highest startpercapitaincome.
+
+citibike_subsetdata <- demand%>% subset(StartStationId == 3255 | EndStationId == 3255 | 
+                                            StartStationId == 387 | EndStationId == 387 |
+                                            StartStationId == 497 | EndStationId == 497 |
+                                            StartStationId == 402 | EndStationId == 402 |
+                                            StartStationId == 519 | EndStationId == 519)
+
+reg1 <- lm(Demand ~ factor(DemandTime) + factor(StartStationId) + factor(EndStationId) + StartPerCapitaIncome, data = demand)
+
+summary(reg1)
+
+#2. Select a date between June 1, 2018, and May 31, 2019, (a future date not covered by the dataset).
+
+ ## Date of choice: July 15th 2018
+#3. Utilize the resources listed in the data description file to get the data for that day.
+
+        ## For StartStationId 152: StartPerCapitaIncome = 
+        ## For StartStationId 128: StartPerCapitaIncome = 
+        ## For StartStationId 386: StartPerCapitaIncome = 
+        ## For StartStationId 522: StartPerCapitaIncome =
+        ## For StartStationId 3142: StartPerCapitaIncome = 
+
+
+### 4. Predict the demand for Daytime & Evening of the day
+#first lets predict for the morning 
+
+#morning interaction for the station 3255
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "3255", EndStationId = "237", StartPerCapitaIncome =86347))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "3255", EndStationId = "2008", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "3255", EndStationId = "519", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "3255", EndStationId = "3232", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "3255", EndStationId = "3255", StartPerCapitaIncome = 86347))
+
+
+# morning interaction for station id 387
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "387", EndStationId = "237", StartPerCapitaIncome = 166343))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "387", EndStationId = "2008", StartPerCapitaIncome = 166343))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "387", EndStationId = "519", StartPerCapitaIncome = 166343))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "387", EndStationId = "3232", StartPerCapitaIncome = 166343))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "387", EndStationId = "387", StartPerCapitaIncome = 166343))
+
+## morning interaction for station id 497
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "497", EndStationId = "237", StartPerCapitaIncome = 85199))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "497", EndStationId = "2008", StartPerCapitaIncome = 85199))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "497", EndStationId = "519", StartPerCapitaIncome = 85199))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "497", EndStationId = "3232", StartPerCapitaIncome = 85199))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "497", EndStationId = "497", StartPerCapitaIncome = 85199))
+
+## morning interaction for station id 402
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "402", EndStationId = "237", StartPerCapitaIncome = 83240))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "402", EndStationId = "2008", StartPerCapitaIncome = 83240))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "402", EndStationId = "519", StartPerCapitaIncome = 83240))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "402", EndStationId = "3232", StartPerCapitaIncome = 83240))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "402", EndStationId = "402", StartPerCapitaIncome = 83240))
+
+## morning interaction for station id 519
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "519", EndStationId = "237", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "519", EndStationId = "2008", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "519", EndStationId = "3255", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "519", EndStationId = "3232", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "daytime", StartStationId = "519", EndStationId = "519", StartPerCapitaIncome = 86347))
+
+#now lets predict the evening 
+
+#Evening interaction for the station 3255
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "3255", EndStationId = "237", StartPerCapitaIncome =86347))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "3255", EndStationId = "2008", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "3255", EndStationId = "519", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "3255", EndStationId = "3232", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "3255", EndStationId = "3255", StartPerCapitaIncome = 86347))
+
+
+#Task 3-
+
+# Evening interaction for station id 387
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "387", EndStationId = "237", StartPerCapitaIncome = 166343))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "387", EndStationId = "2008", StartPerCapitaIncome = 166343))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "387", EndStationId = "519", StartPerCapitaIncome = 166343))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "387", EndStationId = "3232", StartPerCapitaIncome = 166343))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "387", EndStationId = "387", StartPerCapitaIncome = 166343))
+
+## Evening interaction for station id 497
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "497", EndStationId = "237", StartPerCapitaIncome = 85199))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "497", EndStationId = "2008", StartPerCapitaIncome = 85199))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "497", EndStationId = "519", StartPerCapitaIncome = 85199))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "497", EndStationId = "3232", StartPerCapitaIncome = 85199))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "497", EndStationId = "497", StartPerCapitaIncome = 85199))
+
+## Evening interaction for station id 402
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "402", EndStationId = "237", StartPerCapitaIncome = 83240))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "402", EndStationId = "2008", StartPerCapitaIncome = 83240))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "402", EndStationId = "519", StartPerCapitaIncome = 83240))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "402", EndStationId = "3232", StartPerCapitaIncome = 83240))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "402", EndStationId = "402", StartPerCapitaIncome = 83240))
+
+## Evening interaction for station id 519
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "519", EndStationId = "237", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "519", EndStationId = "2008", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "519", EndStationId = "3255", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "519", EndStationId = "3232", StartPerCapitaIncome = 86347))
+
+predict(reg1, data.frame(DemandTime = "evening", StartStationId = "519", EndStationId = "519", StartPerCapitaIncome = 86347))
+
+
+
+```
+##Task 3 :Prescriptive Analysis
+
+
+
+
+
+
+
+
+
+
+
+

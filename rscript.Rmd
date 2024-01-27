@@ -1,6 +1,6 @@
 ---
 title: "CitiBike"
-author: "Group 4"
+author: "Elisha Damor"
 date: "5/21/2023"
 output:
 html_document: default
@@ -54,7 +54,7 @@ In this section, we import the necessary data for this lab.
 
 # make sure the path of the directory is correct, i.e., where you have stored your data
 getwd()
-setwd("/Users/shivaraya/Downloads")
+setwd("")
 ### import data file
 # read the files using read.csv
 demand <- read.csv("demand.csv")
